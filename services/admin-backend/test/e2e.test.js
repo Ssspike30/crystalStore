@@ -25,6 +25,9 @@ function parseOrderSearchParams(params, withPaging) {
   if (values.length === 4) {
     return { status: String(values[0]), keyword: sanitizeLike(values[1]) };
   }
+  if (values.length === 1) {
+    return { status: String(values[0]), keyword: "" };
+  }
   if (values.length === 3) {
     return { status: "all", keyword: sanitizeLike(values[0]) };
   }
@@ -35,6 +38,9 @@ function parseRefundSearchParams(params, withPaging) {
   const values = withPaging ? params.slice(0, -2) : params;
   if (values.length === 5) {
     return { status: String(values[0]), keyword: sanitizeLike(values[1]) };
+  }
+  if (values.length === 1) {
+    return { status: String(values[0]), keyword: "" };
   }
   if (values.length === 4) {
     return { status: "all", keyword: sanitizeLike(values[0]) };
@@ -414,6 +420,18 @@ test("e2e: user pays order and admin ships then completes it", async () => {
     });
     assert.equal(callback.response.status, 200);
 
+    pool.state.orders.push({
+      id: nextId(pool.state.orders),
+      order_no: "NOISE-ORDER-1",
+      user_id: userId,
+      order_status: "pending_payment",
+      pay_status: "unpaid",
+      payable_amount: 88,
+      paid_amount: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    });
+
     const adminOrders = await request(adminPort, "GET", "/api/admin/orders?status=pending_production&page=1&pageSize=10", {
       headers: { "x-admin-key": "secret" }
     });
@@ -508,6 +526,21 @@ test("e2e: user requests refund and admin approves it", async () => {
     });
     assert.equal(refund.response.status, 201);
 
+    pool.state.refunds.push({
+      id: nextId(pool.state.refunds),
+      order_id: orderId,
+      payment_id: pool.state.payments[0].id,
+      refund_no: "RF-NOISE-1",
+      refund_amount: 12,
+      reason: "already closed",
+      status: "success",
+      requested_by: "user",
+      requested_at: new Date().toISOString(),
+      processed_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    });
+
     const adminRefunds = await request(adminPort, "GET", "/api/admin/refunds?status=pending&page=1&pageSize=10", {
       headers: { "x-admin-key": "secret" }
     });
@@ -528,6 +561,7 @@ test("e2e: user requests refund and admin approves it", async () => {
     assert.equal(userDetail.data.order.orderStatus, "refunded");
     assert.equal(userDetail.data.order.payStatus, "refunded");
     assert.equal(userDetail.data.refundSummary.status, "success");
+    assert.equal(pool.state.payments[0].status, "refunded");
   } finally {
     await Promise.all([
       new Promise((resolve) => userServer.close(resolve)),

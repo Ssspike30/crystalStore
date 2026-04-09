@@ -389,6 +389,25 @@ function handleQuery(state, sql, params) {
     return [{ affectedRows: 1 }];
   }
 
+  if (normalized.startsWith("update addresses set receiver_name = ?, receiver_phone = ?, province = ?, city = ?, district = ?, detail_address = ?, postal_code = ?, tag = ?, is_default = ? where id = ? and user_id = ?")) {
+    const [receiverName, receiverPhone, province, city, district, detailAddress, postalCode, tag, isDefault, id, userId] = params;
+    const row = state.addresses.find((item) => Number(item.id) === Number(id) && Number(item.user_id) === Number(userId));
+    if (!row) {
+      return [{ affectedRows: 0, changedRows: 0 }];
+    }
+    row.receiver_name = receiverName;
+    row.receiver_phone = receiverPhone;
+    row.province = province;
+    row.city = city;
+    row.district = district;
+    row.detail_address = detailAddress;
+    row.postal_code = postalCode ?? null;
+    row.tag = tag ?? null;
+    row.is_default = Number(isDefault) === 1 ? 1 : 0;
+    row.updated_at = new Date().toISOString();
+    return [{ affectedRows: 1, changedRows: 1 }];
+  }
+
   if (normalized.startsWith("select ci.bead_id, ci.quantity, b.name, b.color, b.size_mm, b.unit_price from cart_items ci join beads b on b.id = ci.bead_id where ci.cart_id = ? and ci.selected = 1 order by ci.id asc")) {
     const cartId = Number(params[0]);
     const rows = state.cart_items
