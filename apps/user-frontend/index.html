@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light only" />
+  <title>crystalStore 用户端最小闭环联调页</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <script>
+    window.CRYSTALSTORE_API_BASE_URL = new URLSearchParams(location.search).get("apiBaseUrl") || "";
+  </script>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">crystalStore · 用户端最小闭环联调页</p>
+        <h1>零依赖静态页，直接跑通 mock 登录到退款申请</h1>
+        <p class="hero-desc">
+          本页默认使用本地演示数据，支持直接双击打开。
+          如需尝试真实后端，可在顶部配置 <code>API_BASE_URL</code>。
+        </p>
+      </div>
+      <div class="hero-status card">
+        <div class="status-row"><span class="status-label">当前模式</span><span id="modeBadge" class="badge badge-warm">本地演示</span></div>
+        <div class="status-row"><span class="status-label">当前用户</span><strong id="currentUserLabel">未登录</strong></div>
+        <div class="status-row"><span class="status-label">最近提示</span><span id="noticeText" class="notice-text">准备就绪</span></div>
+      </div>
+    </header>
+
+    <section class="toolbar card">
+      <div class="toolbar-grid">
+        <label class="field">
+          <span>API_BASE_URL</span>
+          <input id="apiBaseUrlInput" type="text" placeholder="例如 http://localhost:3001" />
+        </label>
+        <label class="field">
+          <span>腕围输入</span>
+          <input id="wristSizeInput" type="number" min="13" max="21" step="0.1" value="16" />
+        </label>
+        <label class="field">
+          <span>默认运费</span>
+          <input id="shippingFeeInput" type="number" min="0" step="0.01" value="12" />
+        </label>
+        <div class="toolbar-actions">
+          <button id="saveConfigBtn" class="btn btn-primary" type="button">保存配置</button>
+          <button id="refreshBtn" class="btn" type="button">刷新数据</button>
+          <button id="resetDemoBtn" class="btn btn-ghost" type="button">重置演示数据</button>
+        </div>
+      </div>
+      <p class="toolbar-hint">提示：如果真实后端未开启跨域，本页会自动回落到本地演示模式，保证链路可用。</p>
+    </section>
+
+    <main class="workspace">
+      <section class="card section" id="loginSection">
+        <div class="section-head">
+          <div><p class="section-kicker">步骤 1</p><h2>登录</h2></div>
+          <span class="section-tip">调用 <code>/api/auth/mock-login</code></span>
+        </div>
+        <div class="form-grid form-grid-4">
+          <label class="field"><span>昵称</span><input id="nicknameInput" type="text" placeholder="演示用户" value="演示用户" /></label>
+          <label class="field"><span>头像 URL</span><input id="avatarInput" type="text" placeholder="可留空" /></label>
+          <label class="field"><span>OpenID</span><input id="openidInput" type="text" placeholder="可留空，自动生成" /></label>
+          <div class="field"><span>&nbsp;</span><button id="loginBtn" class="btn btn-primary btn-block" type="button">Mock 登录</button></div>
+        </div>
+      </section>
+
+      <section class="grid-two">
+        <article class="card section" id="beadsSection">
+          <div class="section-head">
+            <div><p class="section-kicker">步骤 2</p><h2>珠子列表</h2></div>
+            <span class="section-tip">先选腕围，再加入购物车</span>
+          </div>
+          <div id="beadsGrid" class="beads-grid"></div>
+        </article>
+
+        <article class="card section" id="cartSection">
+          <div class="section-head">
+            <div><p class="section-kicker">步骤 3</p><h2>购物车</h2></div>
+            <span class="section-tip">勾选后才能下单</span>
+          </div>
+          <div id="cartSummary" class="summary-strip"></div>
+          <div id="cartList" class="stack"></div>
+          <div class="section-footer">
+            <button id="clearSelectionBtn" class="btn" type="button">全不选</button>
+            <button id="selectAllBtn" class="btn" type="button">全选</button>
+            <button id="createOrderBtn" class="btn btn-primary" type="button">去下单</button>
+          </div>
+        </article>
+      </section>
+
+      <section class="grid-two">
+        <article class="card section" id="addressSection">
+          <div class="section-head">
+            <div><p class="section-kicker">步骤 4</p><h2>地址管理</h2></div>
+            <span class="section-tip">增删改、设默认</span>
+          </div>
+          <div id="addressList" class="stack"></div>
+        </article>
+
+        <article class="card section" id="addressFormSection">
+          <div class="section-head">
+            <div><p class="section-kicker">步骤 5</p><h2>地址表单</h2></div>
+            <span class="section-tip" id="addressFormMode">新增模式</span>
+          </div>
+          <div class="form-grid form-grid-2">
+            <label class="field"><span>收件人</span><input id="receiverNameInput" type="text" placeholder="张三" /></label>
+            <label class="field"><span>手机号</span><input id="receiverPhoneInput" type="text" placeholder="13800000000" /></label>
+            <label class="field"><span>省份</span><input id="provinceInput" type="text" placeholder="上海市" /></label>
+            <label class="field"><span>城市</span><input id="cityInput" type="text" placeholder="上海市" /></label>
+            <label class="field"><span>区县</span><input id="districtInput" type="text" placeholder="浦东新区" /></label>
+            <label class="field"><span>详细地址</span><input id="detailAddressInput" type="text" placeholder="世纪大道100号" /></label>
+            <label class="field"><span>邮编</span><input id="postalCodeInput" type="text" placeholder="200120" /></label>
+            <label class="field"><span>标签</span><input id="tagInput" type="text" placeholder="家 / 公司" /></label>
+          </div>
+          <label class="checkbox-field"><input id="isDefaultInput" type="checkbox" /><span>设为默认地址</span></label>
+          <div class="section-footer">
+            <button id="cancelAddressEditBtn" class="btn" type="button">取消编辑</button>
+            <button id="saveAddressBtn" class="btn btn-primary" type="button">保存地址</button>
+          </div>
+        </article>
+      </section>
+
+      <section class="card section" id="orderSection">
+        <div class="section-head">
+          <div><p class="section-kicker">步骤 6</p><h2>下单与支付</h2></div>
+          <span class="section-tip">下单后发起 prepay，再模拟 callback</span>
+        </div>
+        <div class="form-grid form-grid-3">
+          <label class="field"><span>收货地址</span><select id="orderAddressSelect"></select></label>
+          <label class="field"><span>下单腕围</span><input id="orderWristInput" type="number" min="13" max="21" step="0.1" value="16" /></label>
+          <label class="field"><span>备注</span><input id="remarkInput" type="text" placeholder="尽快发货" /></label>
+        </div>
+        <div class="section-footer">
+          <button id="createOrderFromFormBtn" class="btn btn-primary" type="button">创建订单</button>
+          <button id="loadOrderDetailBtn" class="btn" type="button">刷新订单详情</button>
+        </div>
+        <div class="payment-box">
+          <div class="payment-grid">
+            <label class="field"><span>待支付订单</span><select id="paymentOrderSelect"></select></label>
+            <div class="payment-actions">
+              <button id="prepayBtn" class="btn btn-primary" type="button">发起 prepay</button>
+              <button id="callbackSuccessBtn" class="btn" type="button">模拟 callback 成功</button>
+              <button id="callbackFailBtn" class="btn btn-ghost" type="button">模拟 callback 失败</button>
+            </div>
+          </div>
+          <div id="paymentResult" class="result-box">尚未发起支付</div>
+        </div>
+      </section>
+
+      <section class="grid-two">
+        <article class="card section" id="ordersSection">
+          <div class="section-head">
+            <div><p class="section-kicker">步骤 7</p><h2>订单列表</h2></div>
+            <span class="section-tip">查看列表与详情</span>
+          </div>
+          <div id="ordersList" class="stack"></div>
+        </article>
+
+        <article class="card section" id="orderDetailSection">
+          <div class="section-head">
+            <div><p class="section-kicker">步骤 8</p><h2>订单详情</h2></div>
+            <span class="section-tip">对已支付订单发起退款</span>
+          </div>
+          <div id="orderDetail" class="detail-panel">请选择一笔订单查看详情</div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <template id="beadCardTemplate">
+    <article class="bead-card">
+      <div class="bead-top">
+        <div><h3 data-field="name"></h3><p data-field="meta"></p></div>
+        <span class="price-tag" data-field="price"></span>
+      </div>
+      <div class="bead-actions">
+        <label class="field compact"><span>数量</span><input data-field="quantity" type="number" min="1" step="1" value="1" /></label>
+        <button data-action="add" class="btn btn-primary" type="button">加入购物车</button>
+      </div>
+    </article>
+  </template>
+
+  <template id="cartItemTemplate">
+    <article class="cart-item">
+      <label class="checkbox-field cart-checkbox"><input data-field="selected" type="checkbox" /><span data-field="title"></span></label>
+      <div class="cart-meta"><span data-field="subTitle"></span><span data-field="amount"></span></div>
+      <div class="cart-controls">
+        <button data-action="decrease" class="btn btn-sm" type="button">-</button>
+        <input data-field="quantity" type="number" min="1" step="1" />
+        <button data-action="increase" class="btn btn-sm" type="button">+</button>
+        <button data-action="delete" class="btn btn-sm btn-ghost" type="button">删除</button>
+      </div>
+    </article>
+  </template>
+
+  <template id="addressCardTemplate">
+    <article class="address-card">
+      <div class="address-head">
+        <strong data-field="title"></strong>
+        <span data-field="defaultBadge" class="badge badge-soft"></span>
+      </div>
+      <p data-field="content"></p>
+      <div class="address-actions">
+        <button data-action="default" class="btn btn-sm" type="button">设默认</button>
+        <button data-action="edit" class="btn btn-sm" type="button">编辑</button>
+        <button data-action="delete" class="btn btn-sm btn-ghost" type="button">删除</button>
+      </div>
+    </article>
+  </template>
+
+  <template id="orderCardTemplate">
+    <article class="order-card">
+      <div class="order-head">
+        <div><strong data-field="orderNo"></strong><p data-field="status"></p></div>
+        <span data-field="payStatus" class="badge"></span>
+      </div>
+      <div class="order-sum" data-field="summary"></div>
+      <div class="order-actions">
+        <button data-action="detail" class="btn btn-sm btn-primary" type="button">查看详情</button>
+        <button data-action="pay" class="btn btn-sm" type="button">去支付</button>
+        <button data-action="refund" class="btn btn-sm btn-ghost" type="button">申请退款</button>
+      </div>
+    </article>
+  </template>
+
+  <script src="./app.js"></script>
+</body>
+</html>
