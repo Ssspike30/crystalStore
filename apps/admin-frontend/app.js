@@ -34,6 +34,8 @@
     failed: "退款失败"
   };
 
+  const PAGE_SIZE_OPTIONS = [10, 20, 50];
+
   const DEMO_ORDERS = [
     {
       id: 501,
@@ -263,6 +265,14 @@
     els.apiBaseUrlInput.value = state.config.apiBaseUrl;
   }
 
+  function clearSelectedOrderAndDetail(message) {
+    state.selectedOrderId = null;
+    clearDetail();
+    if (message) {
+      setNotice(message);
+    }
+  }
+
   async function refreshDashboard(options = {}) {
     const keepSelection = options.keepSelection !== false;
     const previousOrderId = keepSelection ? state.selectedOrderId : null;
@@ -303,9 +313,7 @@
         await openOrderDetail(previousOrderId, { silent: true });
         return;
       }
-      state.selectedOrderId = null;
-      clearDetail();
-      setNotice("当前筛选结果已不包含原选中订单，详情已清空");
+      clearSelectedOrderAndDetail("当前筛选结果已不包含原选中订单，详情已清空");
       return;
     }
 
@@ -319,6 +327,16 @@
       console.error(error);
       state.orders = [];
       state.refunds = [];
+      state.orderMeta = {
+        page: Number(state.config.orderPage || 1),
+        pageSize: Number(state.config.orderPageSize || 20),
+        total: 0
+      };
+      state.refundMeta = {
+        page: Number(state.config.refundPage || 1),
+        pageSize: Number(state.config.refundPageSize || 20),
+        total: 0
+      };
       renderStats();
       renderOrders();
       renderRefunds();
@@ -561,6 +579,9 @@
     const container = isOrderPager ? els.ordersPager : els.refundsPager;
     const pageCount = Math.max(1, Math.ceil((meta.total || 0) / (meta.pageSize || 20)));
     const selectValue = String(meta.pageSize || 20);
+    const optionsHtml = PAGE_SIZE_OPTIONS
+      .map((size) => `<option value="${size}" ${selectValue === String(size) ? "selected" : ""}>${size}</option>`)
+      .join("");
 
     container.innerHTML = `
       <div class="pager-meta">第 ${meta.page} / ${pageCount} 页，共 ${meta.total} 条</div>
@@ -568,9 +589,7 @@
         <label class="field">
           <span>每页</span>
           <select data-role="pageSize">
-            <option value="10" ${selectValue === "10" ? "selected" : ""}>10</option>
-            <option value="20" ${selectValue === "20" ? "selected" : ""}>20</option>
-            <option value="50" ${selectValue === "50" ? "selected" : ""}>50</option>
+            ${optionsHtml}
           </select>
         </label>
         <button class="btn btn-sm" type="button" data-role="prev" ${meta.page <= 1 ? "disabled" : ""}>上一页</button>
@@ -939,7 +958,9 @@
   function loadConfig() {
     const saved = safeParse(localStorage.getItem(KEY.config), {});
     return {
-      apiBaseUrl: normalizeApiBaseUrl(String(saved.apiBaseUrl || window.CRYSTALSTORE_ADMIN_API_BASE_URL || "http://localhost:3002").trim()),
+      apiBaseUrl: normalizeApiBaseUrl(
+        String(saved.apiBaseUrl || window.CRYSTALSTORE_ADMIN_SERVICE_ROOT_URL || window.CRYSTALSTORE_ADMIN_API_BASE_URL || "http://localhost:3002").trim()
+      ),
       adminKey: String(saved.adminKey || "").trim(),
       orderStatus: saved.orderStatus || "all",
       refundStatus: saved.refundStatus || "all",

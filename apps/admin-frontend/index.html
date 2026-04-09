@@ -7,7 +7,8 @@
   <title>crystalStore Admin Console</title>
   <link rel="stylesheet" href="./styles.css" />
   <script>
-    window.CRYSTALSTORE_ADMIN_API_BASE_URL = new URLSearchParams(location.search).get("apiBaseUrl") || "";
+    const searchParams = new URLSearchParams(location.search);
+    window.CRYSTALSTORE_ADMIN_SERVICE_ROOT_URL = searchParams.get("serviceRootUrl") || searchParams.get("apiBaseUrl") || "";
   </script>
 </head>
 <body>
@@ -31,7 +32,7 @@
     <section class="card control-deck">
       <div class="control-grid">
         <label class="field field-wide">
-          <span>后台服务根地址</span>
+          <span>服务根地址</span>
           <input id="apiBaseUrlInput" type="text" placeholder="例如 http://localhost:3002（不要带 /api/admin）" />
         </label>
         <label class="field">
