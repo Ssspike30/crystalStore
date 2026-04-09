@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - "**"
+  workflow_dispatch:
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run backend npm tests with graceful fallback
+        shell: bash
+        run: |
+          set +e
+
+          install_and_test_package() {
+            local service_dir="$1"
+            local package_json="$service_dir/package.json"
+
+            echo "::group::${service_dir} :: install + test"
+            if [ ! -d "$service_dir" ]; then
+              echo "SKIP: directory does not exist -> $service_dir"
+              echo "::endgroup::"
+              return 0
+            fi
+
+            if [ ! -f "$package_json" ]; then
+              echo "SKIP: package.json not found -> $package_json"
+              echo "::endgroup::"
+              return 0
+            fi
+
+            pushd "$service_dir" >/dev/null
+
+            if [ -f "package-lock.json" ]; then
+              echo "Running npm ci in $service_dir"
+              npm ci --no-audit --no-fund
+            else
+              echo "Running npm install in $service_dir"
+              npm install --no-audit --no-fund
+            fi
+
+            npm test --if-present
+            local exit_code=$?
+            popd >/dev/null
+
+            if [ $exit_code -ne 0 ]; then
+              echo "FAIL: install/test failed in $service_dir"
+              echo "::endgroup::"
+              exit $exit_code
+            fi
+
+            echo "OK: install/test completed in $service_dir"
+            echo "::endgroup::"
+          }
+
+          install_and_test_package "services/user-backend"
+          install_and_test_package "services/admin-backend"
+          install_and_test_package "packages/shared-utils"
