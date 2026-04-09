@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "node src/server.js",
     "start": "node src/server.js",
-    "test": "node test/admin.test.js"
+    "test": "node test/admin.test.js && node test/e2e.test.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

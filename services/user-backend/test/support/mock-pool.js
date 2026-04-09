@@ -175,8 +175,30 @@ function handleQuery(state, sql, params) {
           selected: item.selected,
           size_mm: bead ? bead.size_mm : null
         };
-      });
+    });
     return [rows.map(clone)];
+  }
+
+  if (normalized.startsWith("insert into cart_items (cart_id, bead_id, quantity, selected) values (?, ?, ?, 1) on duplicate key update quantity = quantity + values(quantity)")) {
+    const [cartId, beadId, quantity] = params;
+    const existing = state.cart_items.find((item) => Number(item.cart_id) === Number(cartId) && Number(item.bead_id) === Number(beadId));
+    if (existing) {
+      existing.quantity = Number(existing.quantity) + Number(quantity);
+      existing.updated_at = new Date().toISOString();
+      return [{ insertId: existing.id, affectedRows: 1 }];
+    }
+
+    const row = {
+      id: nextId(state.cart_items),
+      cart_id: Number(cartId),
+      bead_id: Number(beadId),
+      quantity: Number(quantity),
+      selected: 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    state.cart_items.push(row);
+    return [{ insertId: row.id, affectedRows: 1 }];
   }
 
   if (normalized.startsWith("select ci.id, ci.cart_id, ci.quantity, ci.selected, b.size_mm from cart_items ci join carts c on c.id = ci.cart_id join beads b on b.id = ci.bead_id where ci.id = ? and c.user_id = ? limit 1")) {
@@ -311,6 +333,60 @@ function handleQuery(state, sql, params) {
     const id = Number(params[0]);
     const userId = Number(params[1]);
     return [state.addresses.filter((row) => Number(row.id) === id && Number(row.user_id) === userId).slice(0, 1).map(clone)];
+  }
+
+  if (normalized.startsWith("select id from addresses where id = ? and user_id = ? limit 1")) {
+    const id = Number(params[0]);
+    const userId = Number(params[1]);
+    const rows = state.addresses
+      .filter((row) => Number(row.id) === id && Number(row.user_id) === userId)
+      .slice(0, 1)
+      .map((row) => ({ id: row.id }));
+    return [rows.map(clone)];
+  }
+
+  if (normalized.startsWith("update addresses set is_default = 0 where user_id = ?")) {
+    const userId = Number(params[0]);
+    for (const row of state.addresses) {
+      if (Number(row.user_id) === userId) {
+        row.is_default = 0;
+        row.updated_at = new Date().toISOString();
+      }
+    }
+    return [{ affectedRows: state.addresses.filter((row) => Number(row.user_id) === userId).length }];
+  }
+
+  if (normalized.startsWith("insert into addresses (user_id, receiver_name, receiver_phone, province, city, district, detail_address, postal_code, tag, is_default)")) {
+    const [userId, receiverName, receiverPhone, province, city, district, detailAddress, postalCode, tag, isDefault] = params;
+    const row = {
+      id: nextId(state.addresses),
+      user_id: Number(userId),
+      receiver_name: receiverName,
+      receiver_phone: receiverPhone,
+      province,
+      city,
+      district,
+      detail_address: detailAddress,
+      postal_code: postalCode ?? null,
+      tag: tag ?? null,
+      is_default: Number(isDefault) === 1 ? 1 : 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    state.addresses.push(row);
+    return [{ insertId: row.id, affectedRows: 1 }];
+  }
+
+  if (normalized.startsWith("update addresses set is_default = 1 where id = ? and user_id = ?")) {
+    const id = Number(params[0]);
+    const userId = Number(params[1]);
+    const row = state.addresses.find((item) => Number(item.id) === id && Number(item.user_id) === userId);
+    if (!row) {
+      return [{ affectedRows: 0 }];
+    }
+    row.is_default = 1;
+    row.updated_at = new Date().toISOString();
+    return [{ affectedRows: 1 }];
   }
 
   if (normalized.startsWith("select ci.bead_id, ci.quantity, b.name, b.color, b.size_mm, b.unit_price from cart_items ci join beads b on b.id = ci.bead_id where ci.cart_id = ? and ci.selected = 1 order by ci.id asc")) {
