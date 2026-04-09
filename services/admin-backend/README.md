@@ -32,6 +32,16 @@ npm run dev
 - `npm run dev` 和 `npm start` 都会启动 `src/server.js`
 - 启动后可访问 `GET /health` 检查服务状态
 
+## 测试命令
+
+```bash
+npm test
+```
+
+- 会先执行 `test/admin.test.js`，覆盖后台接口的核心成功/失败路径
+- 再执行 `test/e2e.test.js`，覆盖“用户下单支付 -> 后台发货完结”和“用户申请退款 -> 后台审核通过”两条跨服务链路
+- 端到端测试复用了 `services/user-backend/test/support/mock-pool.js` 的内存态数据，不依赖本地 MySQL
+
 ## 鉴权方式
 
 - 请求后台接口时需要在 Header 中携带 `x-admin-key`
