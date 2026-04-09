@@ -1,0 +1,219 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light only" />
+  <title>crystalStore Admin Console</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <script>
+    window.CRYSTALSTORE_ADMIN_API_BASE_URL = new URLSearchParams(location.search).get("apiBaseUrl") || "";
+  </script>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">crystalStore / admin frontend</p>
+        <h1>把订单、发货、退款三条运营动作，压进一个能直接联调的静态管理台。</h1>
+        <p class="hero-desc">
+          这不是后台空壳页，而是围绕现有 <code>admin-backend</code> 接口做的最小可用运营台。
+          你可以直接连接真实接口，也可以在接口不可用时切到本地 demo 模式演示整条流程。
+        </p>
+      </div>
+      <div class="hero-panel card">
+        <div class="status-row"><span>当前模式</span><strong id="modeBadge" class="badge badge-warm">本地 demo</strong></div>
+        <div class="status-row"><span>接口地址</span><strong id="apiBaseBadge">未配置</strong></div>
+        <div class="status-row"><span>最近提示</span><strong id="noticeText">准备就绪</strong></div>
+      </div>
+    </header>
+
+    <section class="card control-deck">
+      <div class="control-grid">
+        <label class="field field-wide">
+          <span>后台服务根地址</span>
+          <input id="apiBaseUrlInput" type="text" placeholder="例如 http://localhost:3002（不要带 /api/admin）" />
+        </label>
+        <label class="field">
+          <span>x-admin-key</span>
+          <input id="adminKeyInput" type="password" placeholder="输入 ADMIN_API_KEY" />
+        </label>
+        <label class="field field-compact">
+          <span>订单状态</span>
+          <select id="orderStatusFilter">
+            <option value="all">全部订单</option>
+            <option value="pending_payment">待付款</option>
+            <option value="pending_production">待制作</option>
+            <option value="pending_shipment">待收货</option>
+            <option value="completed">已完成</option>
+            <option value="cancelled">已取消</option>
+            <option value="refund_pending">退款中</option>
+            <option value="refunded">已退款</option>
+          </select>
+        </label>
+        <label class="field field-compact">
+          <span>退款状态</span>
+          <select id="refundStatusFilter">
+            <option value="all">全部退款</option>
+            <option value="pending">待审核</option>
+            <option value="success">已退款</option>
+            <option value="rejected">已驳回</option>
+          </select>
+        </label>
+        <label class="field field-wide">
+          <span>搜索关键词</span>
+          <input id="keywordInput" type="text" placeholder="订单号 / 退款单号 / 昵称 / 手机号" />
+        </label>
+        <div class="action-cluster">
+          <button id="saveConfigBtn" class="btn btn-primary" type="button">保存并连接</button>
+          <button id="refreshBtn" class="btn" type="button">刷新数据</button>
+          <button id="resetDemoBtn" class="btn btn-ghost" type="button">重置 demo</button>
+        </div>
+      </div>
+      <div class="stats-grid" id="statsGrid"></div>
+    </section>
+
+    <main class="workspace">
+      <section class="panel-column">
+        <article class="card section">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">Orders</p>
+              <h2>订单总览</h2>
+            </div>
+            <span class="section-tip">点击卡片进入详情，发货/完结/取消都在详情区完成</span>
+          </div>
+          <div id="ordersList" class="stack stack-large"></div>
+          <div id="ordersPager" class="pager"></div>
+        </article>
+
+        <article class="card section">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">Refunds</p>
+              <h2>退款队列</h2>
+            </div>
+            <span class="section-tip">待审核退款支持直接通过 / 驳回</span>
+          </div>
+          <div id="refundsList" class="stack"></div>
+          <div id="refundsPager" class="pager"></div>
+        </article>
+      </section>
+
+      <section class="detail-column">
+        <article class="card section spotlight-card">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">Detail</p>
+              <h2>订单详情</h2>
+            </div>
+            <span class="section-tip">选中订单或退款后，这里会同步展示完整上下文</span>
+          </div>
+
+          <div id="detailPlaceholder" class="detail-placeholder">
+            <strong>还没有选中任何订单</strong>
+            <p>先在左侧点击订单，或者从退款列表跳转到关联订单。</p>
+          </div>
+
+          <div id="detailShell" class="detail-shell hidden">
+            <div class="meta-grid" id="detailMeta"></div>
+
+            <div class="action-strip" id="orderActions"></div>
+
+            <div class="ship-form card-soft">
+              <div class="mini-head">
+                <strong>发货录入</strong>
+                <span>仅待制作订单可操作</span>
+              </div>
+              <div class="ship-grid">
+                <label class="field">
+                  <span>物流公司</span>
+                  <input id="shipCompanyInput" type="text" placeholder="顺丰 / 中通 / 京东" />
+                </label>
+                <label class="field">
+                  <span>运单号</span>
+                  <input id="shipTrackingInput" type="text" placeholder="SF1234567890" />
+                </label>
+                <label class="field field-wide">
+                  <span>备注</span>
+                  <input id="shipRemarkInput" type="text" placeholder="例如：已核对腕围后发货" />
+                </label>
+              </div>
+              <div class="section-footer">
+                <button id="shipOrderBtn" class="btn btn-primary" type="button">提交发货</button>
+              </div>
+            </div>
+
+            <div class="detail-grid">
+              <section class="card-soft">
+                <div class="mini-head"><strong>订单商品</strong><span id="itemsBadge">0 项</span></div>
+                <div id="detailItems" class="stack"></div>
+              </section>
+
+              <section class="card-soft">
+                <div class="mini-head"><strong>地址快照</strong><span>发货参照</span></div>
+                <div id="detailAddress" class="rich-block"></div>
+              </section>
+
+              <section class="card-soft">
+                <div class="mini-head"><strong>支付信息</strong><span>最近支付在前</span></div>
+                <div id="detailPayments" class="stack"></div>
+              </section>
+
+              <section class="card-soft">
+                <div class="mini-head"><strong>物流信息</strong><span>最多一条主记录</span></div>
+                <div id="detailShipments" class="stack"></div>
+              </section>
+
+              <section class="card-soft">
+                <div class="mini-head"><strong>退款信息</strong><span>待审核时可直接处理</span></div>
+                <div id="detailRefunds" class="stack"></div>
+              </section>
+
+              <section class="card-soft">
+                <div class="mini-head"><strong>状态日志</strong><span>按时间顺序</span></div>
+                <div id="detailLogs" class="timeline"></div>
+              </section>
+            </div>
+          </div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <template id="orderCardTemplate">
+    <article class="record-card record-order">
+      <button class="record-main" data-action="detail" type="button">
+        <div class="record-top">
+          <div>
+            <strong data-field="title"></strong>
+            <p data-field="subTitle"></p>
+          </div>
+          <span class="badge" data-field="status"></span>
+        </div>
+        <div class="record-metrics" data-field="metrics"></div>
+      </button>
+    </article>
+  </template>
+
+  <template id="refundCardTemplate">
+    <article class="record-card record-refund">
+      <div class="record-top">
+        <div>
+          <strong data-field="title"></strong>
+          <p data-field="subTitle"></p>
+        </div>
+        <span class="badge badge-soft" data-field="status"></span>
+      </div>
+      <div class="record-metrics" data-field="metrics"></div>
+      <div class="record-actions">
+        <button data-action="locate" class="btn btn-sm" type="button">查看订单</button>
+        <button data-action="approve" class="btn btn-sm btn-primary" type="button">通过退款</button>
+        <button data-action="reject" class="btn btn-sm btn-ghost" type="button">驳回退款</button>
+      </div>
+    </article>
+  </template>
+
+  <script src="./app.js"></script>
+</body>
+</html>
